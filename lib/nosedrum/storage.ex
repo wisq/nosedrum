@@ -64,6 +64,14 @@ defmodule Nosedrum.Storage do
   """
   @type name_or_pid :: atom() | pid()
 
+  @typedoc """
+  Defines a command mapping entry in a bulk update.
+  """
+  @type application_command_spec :: {
+          name_or_path :: String.t() | application_command_path,
+          command_module :: module
+        }
+
   @doc """
   Handle an Application Command invocation.
 
@@ -150,6 +158,23 @@ defmodule Nosedrum.Storage do
               scope :: command_scope,
               name_or_pid
             ) :: :ok | {:error, Nostrum.Error.ApiError.t()}
+
+  @doc """
+  Bulk replace the list of available commands for a given scope.
+
+  ## Return value
+
+  Returns `:ok` if successful, and `{:error, reason}` otherwise.
+  """
+  @callback bulk_overwrite_commands(
+              command_specs :: [application_command_spec],
+              scope :: command_scope
+            ) ::
+              :ok
+              | [
+                  {:error, reason :: String.t(),
+                   name_or_path :: String.t() | application_command_path}
+                ]
 
   @doc """
   Responds to an Interaction with the given `t:Nosedrum.ApplicationCommand.response/0`.
