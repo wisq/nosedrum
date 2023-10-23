@@ -70,6 +70,17 @@ defmodule Nosedrum.Storage.Dispatcher do
     GenServer.call(id, {:remove, name, command_id, scope})
   end
 
+  @impl true
+  def bulk_overwrite_commands(command_specs, scope, id \\ __MODULE__) do
+    payload =
+      command_specs
+      |> Enum.map(fn {path, command} ->
+        build_payload(path, command)
+      end)
+
+    GenServer.call(id, {:bulk_overwrite, payload, command_specs, scope})
+  end
+
   ## Impl
   @impl true
   def init(init_arg) do
@@ -151,6 +162,45 @@ defmodule Nosedrum.Storage.Dispatcher do
 
       error ->
         {:reply, {:error, error}, commands}
+    end
+  end
+
+  @impl true
+  def handle_call({:bulk_overwrite, payload, new_commands, :global}, _from, old_commands) do
+    case Nostrum.Api.bulk_overwrite_global_application_commands(payload) do
+      {:ok, _} = response ->
+        {:reply, response, Map.merge(old_commands, new_commands)}
+
+      error ->
+        {:reply, {:error, error}, old_commands}
+    end
+  end
+
+  @impl true
+  def handle_call({:bulk_overwrite, payload, new_commands, guild_id_list}, _from, old_commands)
+      when is_list(guild_id_list) do
+    res =
+      Enum.reduce(guild_id_list, {[], []}, fn guild_id, {errors, responses} ->
+        case Nostrum.Api.bulk_overwrite_guild_application_commands(guild_id, payload) do
+          {:ok, _} = response ->
+            {errors, [response | responses]}
+
+          error ->
+            {[error | errors], responses}
+        end
+      end)
+
+    {:reply, res, Map.merge(old_commands, new_commands)}
+  end
+
+  @impl true
+  def handle_call({:bulk_overwrite, payload, new_commands, guild_id}, _from, old_commands) do
+    case Nostrum.Api.bulk_overwrite_guild_application_commands(guild_id, payload) do
+      {:ok, _} = response ->
+        {:reply, response, Map.merge(old_commands, new_commands)}
+
+      error ->
+        {:reply, {:error, error}, old_commands}
     end
   end
 
